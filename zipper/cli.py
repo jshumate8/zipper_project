@@ -4,31 +4,64 @@ import sys
 from pathlib import Path
 import getpass
 
-from .core import collect_files, create_zip
+from .core import collect_files, create_zip, extract_zip
 from . import __version__
 
 
 def parse_args(argv=None):
-    p = argparse.ArgumentParser(prog="zipper", description="Create a zip archive from files and directories")
-    p.add_argument('inputs', nargs='+', help='Files or directories to include')
-    p.add_argument('-o', '--output', required=True, help='Output zip file path')
-    p.add_argument('-l', '--level', type=int, choices=range(0, 10), default=6, help='Compression level 0-9')
-    p.add_argument('-r', '--recurse', action='store_true', help='Recurse into directories')
-    p.add_argument('-R', '--no-implied-recurse', action='store_true', dest='no_implied_recurse',
-                   help='Do not imply recursion for directory inputs (explicit -r required)')
-    p.add_argument('-e', '--exclude', action='append', default=[], help='Glob pattern to exclude (can be repeated)')
-    p.add_argument('--include-hidden', action='store_true', help='Include hidden files')
-    p.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
-    p.add_argument('-q', '--quiet', action='store_true', help='Quiet mode; suppress progress and non-error output')
-    p.add_argument('-f', '--force', action='store_true', help='Overwrite output file if it exists')
-    p.add_argument('--encrypt', action='store_true', help='Encrypt archive (AES). You will be prompted for password')
+    p = argparse.ArgumentParser(prog="zipper", description="Create and extract zip archives")
     p.add_argument('--version', action='version', version=__version__)
-    return p.parse_args(argv)
+    
+    subparsers = p.add_subparsers(dest='command', help='Command to execute')
+    
+    # Create command (default behavior for backward compatibility)
+    create_parser = subparsers.add_parser('create', help='Create a zip archive')
+    create_parser.add_argument('inputs', nargs='+', help='Files or directories to include')
+    create_parser.add_argument('-o', '--output', required=True, help='Output zip file path')
+    create_parser.add_argument('-l', '--level', type=int, choices=range(0, 10), default=6, help='Compression level 0-9')
+    create_parser.add_argument('-r', '--recurse', action='store_true', help='Recurse into directories')
+    create_parser.add_argument('-R', '--no-implied-recurse', action='store_true', dest='no_implied_recurse',
+                       help='Do not imply recursion for directory inputs (explicit -r required)')
+    create_parser.add_argument('-e', '--exclude', action='append', default=[], help='Glob pattern to exclude (can be repeated)')
+    create_parser.add_argument('--include-hidden', action='store_true', help='Include hidden files')
+    create_parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
+    create_parser.add_argument('-q', '--quiet', action='store_true', help='Quiet mode; suppress progress and non-error output')
+    create_parser.add_argument('-f', '--force', action='store_true', help='Overwrite output file if it exists')
+    create_parser.add_argument('--encrypt', action='store_true', help='Encrypt archive (AES). You will be prompted for password')
+    
+    # Extract command
+    extract_parser = subparsers.add_parser('extract', help='Extract a zip archive')
+    extract_parser.add_argument('zipfile', help='Zip file to extract')
+    extract_parser.add_argument('-o', '--output', help='Output directory (default: current directory)')
+    extract_parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
+    extract_parser.add_argument('-q', '--quiet', action='store_true', help='Quiet mode; suppress progress and non-error output')
+    extract_parser.add_argument('--password', action='store_true', help='Prompt for password (encrypted archive)')
+    
+    # For backward compatibility: if first arg isn't 'create' or 'extract', assume 'create'
+    if argv is None:
+        argv = sys.argv[1:]
+    
+    if argv and argv[0] not in ['create', 'extract', '--version', '-h', '--help']:
+        # Old-style command without subcommand - insert 'create'
+        argv = ['create'] + list(argv)
+    
+    args = p.parse_args(argv)
+    return args
 
 
 def main(argv=None):
     args = parse_args(argv)
 
+    if args.command == 'create':
+        return create_command(args)
+    elif args.command == 'extract':
+        return extract_command(args)
+    else:
+        print("No command specified. Use 'create' or 'extract'.", file=sys.stderr)
+        return 1
+
+
+def create_command(args):
     # If the user didn't explicitly request recursion, but provided one or more
     # directory inputs, assume they want recursion (unless they disabled implied recursion).
     recurse_flag = args.recurse
@@ -91,6 +124,53 @@ def main(argv=None):
             pb.close()
     except Exception:
         pass
+    return 0
+
+
+def extract_command(args):
+    output_dir = args.output if args.output else '.'
+    
+    password = None
+    if args.password:
+        password = getpass.getpass("Enter password: ")
+    
+    # Progress bar: respect --quiet
+    progress = None
+    if not getattr(args, 'quiet', False):
+        try:
+            from tqdm import tqdm
+            pb = tqdm(unit='file')
+
+            def progress_cb(total, done, current):
+                if pb.total != total:
+                    pb.total = total
+                    pb.refresh()
+                pb.update(1)
+
+            progress = progress_cb
+        except Exception:
+            progress = None
+    else:
+        args.verbose = False
+        progress = None
+    
+    try:
+        extract_zip(args.zipfile, output_dir, password=password, verbose=args.verbose, progress_callback=progress)
+        if not args.quiet:
+            print(f"\nExtracted to: {Path(output_dir).absolute()}")
+    except FileNotFoundError as exc:
+        print(exc, file=sys.stderr)
+        return 2
+    except Exception as exc:
+        print(f"Extraction failed: {exc}", file=sys.stderr)
+        return 3
+    finally:
+        try:
+            if 'pb' in locals():
+                pb.close()
+        except Exception:
+            pass
+    
     return 0
 
 

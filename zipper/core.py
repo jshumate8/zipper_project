@@ -79,3 +79,61 @@ def create_zip(output, files, compresslevel=9, verbose=False, password=None, pro
     except ImportError as e:
         print("Required package missing for encryption: pyzipper", file=sys.stderr)
         raise
+
+
+def extract_zip(zip_path, output_dir, password=None, verbose=False, progress_callback=None, cancel_event=None):
+    """Extract a zip archive.
+
+    Args:
+        zip_path: Path to the zip file
+        output_dir: Directory to extract to
+        password: Optional password for encrypted zips
+        verbose: Print extraction progress
+        progress_callback: Optional callable(total, done, current_path)
+        cancel_event: Optional threading.Event to cancel extraction
+    """
+    zip_path = Path(zip_path)
+    output_dir = Path(output_dir)
+    
+    if not zip_path.exists():
+        raise FileNotFoundError(f"Zip file not found: {zip_path}")
+    
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Try pyzipper first for AES support, fall back to zipfile
+    try:
+        if password:
+            import pyzipper
+            zf = pyzipper.AESZipFile(zip_path, 'r')
+            if password:
+                zf.setpassword(password.encode())
+        else:
+            zf = zipfile.ZipFile(zip_path, 'r')
+    except ImportError:
+        # No pyzipper, use standard zipfile
+        zf = zipfile.ZipFile(zip_path, 'r')
+        if password:
+            zf.setpassword(password.encode())
+    
+    with zf:
+        members = zf.namelist()
+        total = len(members)
+        done = 0
+        
+        for member in members:
+            if cancel_event is not None and getattr(cancel_event, 'is_set', lambda: False)():
+                raise RuntimeError('Operation cancelled')
+            
+            zf.extract(member, output_dir)
+            done += 1
+            
+            if verbose:
+                print(f"extracted {member}")
+            
+            if progress_callback:
+                try:
+                    progress_callback(total, done, member)
+                except Exception:
+                    pass
+    
+    return output_dir
