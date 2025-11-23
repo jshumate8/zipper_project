@@ -2,6 +2,20 @@
 
 A small, dependency-light Python CLI and simple GUI to create zip archives from files and directories.
 
+## 🚀 Windows Users: Quick Start
+
+**No Python installation required!** Download the pre-built executables from the [latest release](https://github.com/jshumate8/zipper_project/releases/latest):
+
+- **`zipper-gui.exe`** - Double-click to launch the graphical interface
+- **`zipper-cli.exe`** - Command-line tool (use in PowerShell/CMD)
+
+After downloading, you can run immediately:
+```powershell
+# GUI: Just double-click zipper-gui.exe
+# CLI: Use in terminal
+.\zipper-cli.exe --help
+.\zipper-cli.exe -o archive.zip myfiles\
+
 **Features**
 - Add files and directories to an archive
 - Implied recursion for directory inputs (can be disabled)
