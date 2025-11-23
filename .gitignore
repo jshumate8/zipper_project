@@ -5,6 +5,8 @@ out.zip
 __pycache__/
 
 # Build artifacts (use GitHub Releases for distribution)
-build/
+# Keep build/*.py runner scripts but exclude PyInstaller build output
+build/*
+!build/*.py
 dist/
 *.spec

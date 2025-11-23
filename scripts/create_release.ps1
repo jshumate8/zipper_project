@@ -33,11 +33,11 @@ if (-not $SkipBuild) {
     
     # Build GUI
     Write-Host "Building GUI executable..."
-    pyinstaller --onefile --noconsole --name zipper-gui build\run_zipper_gui.py --clean
+    python -m PyInstaller --onefile --noconsole --name zipper-gui --paths . build\run_zipper_gui.py --clean
     
     # Build CLI
     Write-Host "Building CLI executable..."
-    pyinstaller --onefile --name zipper-cli build\run_zipper_cli.py --clean
+    python -m PyInstaller --onefile --name zipper-cli --paths . build\run_zipper_cli.py --clean
     
     Write-Host "Done!" -ForegroundColor Green
 }

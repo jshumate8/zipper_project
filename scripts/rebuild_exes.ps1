@@ -40,11 +40,11 @@ if (Test-Path "dist") {
 
 # Build GUI exe
 Write-Host "`nBuilding GUI executable..." -ForegroundColor Green
-pyinstaller --onefile --noconsole --name zipper-gui build\run_zipper_gui.py
+python -m PyInstaller --onefile --noconsole --name zipper-gui --paths . build\run_zipper_gui.py --clean
 
 # Build CLI exe
 Write-Host "`nBuilding CLI executable..." -ForegroundColor Green
-pyinstaller --onefile --name zipper-cli build\run_zipper_cli.py
+python -m PyInstaller --onefile --name zipper-cli --paths . build\run_zipper_cli.py --clean
 
 # Verify
 if ((Test-Path "dist\zipper-gui.exe") -and (Test-Path "dist\zipper-cli.exe")) {
