@@ -1,0 +1,10 @@
+
+# Optional dependencies
+pyzipper>=0.3.5
+tqdm>=4.0.0
+tkinterdnd2>=0.3
+
+# Notes:
+# - These are optional extras: install only what you need (encryption, progress bar, DnD support).
+# - Example: `python -m pip install pyzipper tqdm tkinterdnd2`
+
