@@ -1,8 +1,8 @@
 """Simple Tkinter GUI for the zipper package.
 
 Provides a small UI to select files/folders, pick an output .zip, and
-run zipping in a background thread. Exposes `run_gui()` for the smoke
-test used earlier.
+run zipping in a background thread. Also supports extraction.
+Exposes `run_gui()` for the smoke test used earlier.
 """
 
 import tkinter as tk
@@ -11,7 +11,7 @@ from pathlib import Path
 import threading
 import queue
 
-from .core import collect_files, create_zip
+from .core import collect_files, create_zip, extract_zip
 
 
 class ZipperGUI(tk.Frame):
@@ -22,48 +22,77 @@ class ZipperGUI(tk.Frame):
         self._q = queue.Queue()
         self._worker = None
         self._cancel_event = threading.Event()
+        self.mode = tk.StringVar(value="create")
         self.create_widgets()
 
     def create_widgets(self):
-        # Inputs list
-        lbl = tk.Label(self, text="Inputs")
-        lbl.grid(row=0, column=0, sticky="w")
+        # Mode selector
+        mode_frame = tk.Frame(self)
+        mode_frame.grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 10))
+        
+        tk.Radiobutton(mode_frame, text="Create ZIP", variable=self.mode, value="create", 
+                      command=self.switch_mode).pack(side=tk.LEFT, padx=(0, 10))
+        tk.Radiobutton(mode_frame, text="Extract ZIP", variable=self.mode, value="extract",
+                      command=self.switch_mode).pack(side=tk.LEFT)
+        
+        # Inputs list (for create mode)
+        self.inputs_lbl = tk.Label(self, text="Inputs")
+        self.inputs_lbl.grid(row=1, column=0, sticky="w")
 
         self.listbox = tk.Listbox(self, width=60, height=8)
-        self.listbox.grid(row=1, column=0, columnspan=4, sticky="nsew")
+        self.listbox.grid(row=2, column=0, columnspan=4, sticky="nsew")
 
-        btn_add = tk.Button(self, text="Add Files...", command=self.add_files)
-        btn_add.grid(row=2, column=0, sticky="w", pady=(6, 0))
+        self.btn_add = tk.Button(self, text="Add Files...", command=self.add_files)
+        self.btn_add.grid(row=3, column=0, sticky="w", pady=(6, 0))
 
-        btn_add_dir = tk.Button(self, text="Add Folder...", command=self.add_folder)
-        btn_add_dir.grid(row=2, column=1, sticky="w", pady=(6, 0))
+        self.btn_add_dir = tk.Button(self, text="Add Folder...", command=self.add_folder)
+        self.btn_add_dir.grid(row=3, column=1, sticky="w", pady=(6, 0))
 
-        btn_remove = tk.Button(self, text="Remove", command=self.remove_selected)
-        btn_remove.grid(row=2, column=2, sticky="w", pady=(6, 0))
+        self.btn_remove = tk.Button(self, text="Remove", command=self.remove_selected)
+        self.btn_remove.grid(row=3, column=2, sticky="w", pady=(6, 0))
 
-        # Output
-        out_lbl = tk.Label(self, text="Output .zip")
-        out_lbl.grid(row=3, column=0, sticky="w", pady=(10, 0))
+        # Output (changes meaning based on mode)
+        self.out_lbl = tk.Label(self, text="Output .zip")
+        self.out_lbl.grid(row=4, column=0, sticky="w", pady=(10, 0))
         self.output_var = tk.StringVar()
         out_entry = tk.Entry(self, textvariable=self.output_var, width=50)
-        out_entry.grid(row=3, column=1, columnspan=2, sticky="w", pady=(10, 0))
-        out_btn = tk.Button(self, text="Browse...", command=self.browse_output)
-        out_btn.grid(row=3, column=3, sticky="w", pady=(10, 0))
+        out_entry.grid(row=4, column=1, columnspan=2, sticky="w", pady=(10, 0))
+        self.out_btn = tk.Button(self, text="Browse...", command=self.browse_output)
+        self.out_btn.grid(row=4, column=3, sticky="w", pady=(10, 0))
 
         # Progress and controls
         self.progress = ttk.Progressbar(self, mode="determinate")
-        self.progress.grid(row=4, column=0, columnspan=4, sticky="we", pady=(10, 0))
+        self.progress.grid(row=5, column=0, columnspan=4, sticky="we", pady=(10, 0))
 
         self.status_var = tk.StringVar(value="Idle")
         status_lbl = tk.Label(self, textvariable=self.status_var)
-        status_lbl.grid(row=5, column=0, columnspan=3, sticky="w", pady=(6, 0))
+        status_lbl.grid(row=6, column=0, columnspan=3, sticky="w", pady=(6, 0))
 
-        self.start_btn = tk.Button(self, text="Start", command=self.start)
-        self.start_btn.grid(row=5, column=3, sticky="e", pady=(6, 0))
+        self.start_btn = tk.Button(self, text="Create ZIP", command=self.start)
+        self.start_btn.grid(row=6, column=3, sticky="e", pady=(6, 0))
 
         # Configure grid resizing
-        self.rowconfigure(1, weight=1)
+        self.rowconfigure(2, weight=1)
         self.columnconfigure(1, weight=1)
+
+    def switch_mode(self):
+        """Switch between create and extract modes"""
+        if self.mode.get() == "create":
+            self.inputs_lbl.config(text="Inputs")
+            self.out_lbl.config(text="Output .zip")
+            self.start_btn.config(text="Create ZIP")
+            self.btn_add.config(state=tk.NORMAL)
+            self.btn_add_dir.config(state=tk.NORMAL)
+            self.btn_remove.config(state=tk.NORMAL)
+            self.listbox.delete(0, tk.END)
+        else:  # extract
+            self.inputs_lbl.config(text="ZIP File")
+            self.out_lbl.config(text="Extract to Folder")
+            self.start_btn.config(text="Extract ZIP")
+            self.btn_add.config(state=tk.DISABLED)
+            self.btn_add_dir.config(state=tk.DISABLED)
+            self.btn_remove.config(state=tk.DISABLED)
+            self.listbox.delete(0, tk.END)
 
     def add_files(self):
         paths = filedialog.askopenfilenames(title="Select files to add")
@@ -87,7 +116,19 @@ class ZipperGUI(tk.Frame):
             self.listbox.delete(i)
 
     def browse_output(self):
-        out = filedialog.asksaveasfilename(defaultextension=".zip", filetypes=[("ZIP files", "*.zip")])
+        if self.mode.get() == "create":
+            out = filedialog.asksaveasfilename(defaultextension=".zip", filetypes=[("ZIP files", "*.zip")])
+        else:  # extract mode
+            # In extract mode, this browses for the zip file to extract
+            if not self.listbox.get(0, tk.END):
+                # If no zip file selected yet, browse for zip file
+                out = filedialog.askopenfilename(title="Select ZIP file", filetypes=[("ZIP files", "*.zip")])
+                if out:
+                    self.listbox.delete(0, tk.END)
+                    self.listbox.insert(tk.END, out)
+                    return
+            # If zip already selected, browse for output directory
+            out = filedialog.askdirectory(title="Select extract destination")
         if out:
             self.output_var.set(out)
 
@@ -96,26 +137,48 @@ class ZipperGUI(tk.Frame):
             messagebox.showinfo("Zipper", "A job is already running")
             return
 
-        files = list(self.listbox.get(0, tk.END))
-        if not files:
-            messagebox.showwarning("Zipper", "No input files selected")
-            return
-        out = self.output_var.get().strip()
-        if not out:
-            messagebox.showwarning("Zipper", "No output path selected")
-            return
+        if self.mode.get() == "create":
+            files = list(self.listbox.get(0, tk.END))
+            if not files:
+                messagebox.showwarning("Zipper", "No input files selected")
+                return
+            out = self.output_var.get().strip()
+            if not out:
+                messagebox.showwarning("Zipper", "No output path selected")
+                return
 
-        # reset progress
-        self.progress['value'] = 0
-        self.status_var.set("Starting...")
-        self._cancel_event.clear()
+            # reset progress
+            self.progress['value'] = 0
+            self.status_var.set("Starting...")
+            self._cancel_event.clear()
 
-        # start worker thread
-        self._worker = threading.Thread(target=self._worker_run, args=(files, out), daemon=True)
-        self._worker.start()
-        self.after(100, self._poll_queue)
+            # start worker thread
+            self._worker = threading.Thread(target=self._worker_create, args=(files, out), daemon=True)
+            self._worker.start()
+            self.after(100, self._poll_queue)
+        
+        else:  # extract mode
+            files = list(self.listbox.get(0, tk.END))
+            if not files:
+                messagebox.showwarning("Zipper", "No ZIP file selected")
+                return
+            zip_file = files[0]
+            out_dir = self.output_var.get().strip()
+            if not out_dir:
+                messagebox.showwarning("Zipper", "No extract destination selected")
+                return
 
-    def _worker_run(self, files, out):
+            # reset progress
+            self.progress['value'] = 0
+            self.status_var.set("Extracting...")
+            self._cancel_event.clear()
+
+            # start worker thread
+            self._worker = threading.Thread(target=self._worker_extract, args=(zip_file, out_dir), daemon=True)
+            self._worker.start()
+            self.after(100, self._poll_queue)
+
+    def _worker_create(self, files, out):
         try:
             # `create_zip` expects a list of (Path(src), Path(arcname)) tuples.
             from pathlib import Path as _P
@@ -129,7 +192,17 @@ class ZipperGUI(tk.Frame):
                 self._q.put(("progress", done, total_count, str(current_path)))
 
             create_zip(out, files_for_zip, progress_callback=progress_callback, cancel_event=self._cancel_event)
-            self._q.put(("done", None))
+            self._q.put(("done", "create"))
+        except Exception as e:
+            self._q.put(("error", str(e)))
+
+    def _worker_extract(self, zip_file, out_dir):
+        try:
+            def progress_callback(total_count, done, current_path=None):
+                self._q.put(("progress", done, total_count, str(current_path)))
+
+            extract_zip(zip_file, out_dir, progress_callback=progress_callback, cancel_event=self._cancel_event)
+            self._q.put(("done", "extract"))
         except Exception as e:
             self._q.put(("error", str(e)))
 
@@ -145,8 +218,12 @@ class ZipperGUI(tk.Frame):
                         self.progress['value'] = done
                         self.status_var.set(message or f"{done}/{total_count}")
                 elif kind == "done":
+                    _, operation = item
                     self.status_var.set("Done")
-                    messagebox.showinfo("Zipper", "Archive created successfully")
+                    if operation == "create":
+                        messagebox.showinfo("Zipper", "Archive created successfully")
+                    else:
+                        messagebox.showinfo("Zipper", "Archive extracted successfully")
                 elif kind == "error":
                     _, err = item
                     self.status_var.set("Error")
