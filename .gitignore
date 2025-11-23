@@ -1,0 +1,5 @@
+
+# Local venv and artifacts
+.venv/
+out.zip
+__pycache__/
