@@ -78,27 +78,35 @@ class ZipperGUI(tk.Frame):
     def switch_mode(self):
         """Switch between create and extract modes"""
         if self.mode.get() == "create":
-            self.inputs_lbl.config(text="Inputs")
-            self.out_lbl.config(text="Output .zip")
+            self.inputs_lbl.config(text="Inputs (files/folders to add)")
+            self.out_lbl.config(text="Output .zip file")
             self.start_btn.config(text="Create ZIP")
-            self.btn_add.config(state=tk.NORMAL)
+            self.btn_add.config(state=tk.NORMAL, text="Add Files...")
             self.btn_add_dir.config(state=tk.NORMAL)
             self.btn_remove.config(state=tk.NORMAL)
             self.listbox.delete(0, tk.END)
+            self.output_var.set("")
         else:  # extract
-            self.inputs_lbl.config(text="ZIP File")
-            self.out_lbl.config(text="Extract to Folder")
+            self.inputs_lbl.config(text="ZIP File to extract (click 'Select ZIP...' below)")
+            self.out_lbl.config(text="Extract to folder")
             self.start_btn.config(text="Extract ZIP")
-            self.btn_add.config(state=tk.DISABLED)
+            self.btn_add.config(state=tk.NORMAL, text="Select ZIP...")
             self.btn_add_dir.config(state=tk.DISABLED)
-            self.btn_remove.config(state=tk.DISABLED)
+            self.btn_remove.config(state=tk.NORMAL)
             self.listbox.delete(0, tk.END)
+            self.output_var.set("")
 
     def add_files(self):
-        paths = filedialog.askopenfilenames(title="Select files to add")
-        for p in paths:
-            if p not in self.listbox.get(0, tk.END):
-                self.listbox.insert(tk.END, p)
+        if self.mode.get() == "create":
+            paths = filedialog.askopenfilenames(title="Select files to add")
+            for p in paths:
+                if p not in self.listbox.get(0, tk.END):
+                    self.listbox.insert(tk.END, p)
+        else:  # extract mode - select ZIP file
+            zip_path = filedialog.askopenfilename(title="Select ZIP file", filetypes=[("ZIP files", "*.zip")])
+            if zip_path:
+                self.listbox.delete(0, tk.END)
+                self.listbox.insert(tk.END, zip_path)
 
     def add_folder(self):
         folder = filedialog.askdirectory(title="Select folder to add")
@@ -118,17 +126,8 @@ class ZipperGUI(tk.Frame):
     def browse_output(self):
         if self.mode.get() == "create":
             out = filedialog.asksaveasfilename(defaultextension=".zip", filetypes=[("ZIP files", "*.zip")])
-        else:  # extract mode
-            # In extract mode, this browses for the zip file to extract
-            if not self.listbox.get(0, tk.END):
-                # If no zip file selected yet, browse for zip file
-                out = filedialog.askopenfilename(title="Select ZIP file", filetypes=[("ZIP files", "*.zip")])
-                if out:
-                    self.listbox.delete(0, tk.END)
-                    self.listbox.insert(tk.END, out)
-                    return
-            # If zip already selected, browse for output directory
-            out = filedialog.askdirectory(title="Select extract destination")
+        else:  # extract mode - browse for output directory
+            out = filedialog.askdirectory(title="Select folder to extract to")
         if out:
             self.output_var.set(out)
 
@@ -221,9 +220,16 @@ class ZipperGUI(tk.Frame):
                     _, operation = item
                     self.status_var.set("Done")
                     if operation == "create":
-                        messagebox.showinfo("Zipper", "Archive created successfully")
+                        out_path = self.output_var.get()
+                        msg = f"Archive created successfully:\n{out_path}"
+                        messagebox.showinfo("Zipper", msg)
                     else:
-                        messagebox.showinfo("Zipper", "Archive extracted successfully")
+                        out_dir = self.output_var.get()
+                        msg = f"Archive extracted successfully to:\n{out_dir}"
+                        result = messagebox.askquestion("Zipper", msg + "\n\nOpen folder?", icon='info')
+                        if result == 'yes':
+                            import os
+                            os.startfile(out_dir)
                 elif kind == "error":
                     _, err = item
                     self.status_var.set("Error")
