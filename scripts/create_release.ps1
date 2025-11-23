@@ -1,22 +1,5 @@
-<#
-.SYNOPSIS
-    Create a GitHub release with Windows executables
-
-.DESCRIPTION
-    This script helps prepare a release by:
-    1. Building fresh executables
-    2. Creating a git tag
-    3. Providing commands to create a GitHub release with attachments
-
-.PARAMETER Version
-    Version tag (e.g., "v0.1.1")
-
-.PARAMETER SkipBuild
-    Skip rebuilding executables (use existing dist/ files)
-
-.EXAMPLE
-    .\scripts\create_release.ps1 -Version v0.1.1
-#>
+# Create a GitHub release with Windows executables
+# Usage: .\scripts\create_release.ps1 -Version v0.1.1
 
 [CmdletBinding()]
 param(
@@ -33,39 +16,41 @@ Write-Host "Version: $Version" -ForegroundColor Yellow
 
 # Check if we're in the repo root
 if (-not (Test-Path "pyproject.toml")) {
-    Write-Error "Must run from repository root (where pyproject.toml exists)"
-}
-
-# Activate venv if it exists
-$venvActivate = ".venv\Scripts\Activate.ps1"
-if (Test-Path $venvActivate) {
-    Write-Host "Activating virtual environment..." -ForegroundColor Green
-    & $venvActivate
+    Write-Error "Must run from repository root"
 }
 
 # Build executables unless skipped
 if (-not $SkipBuild) {
     Write-Host "`nBuilding executables..." -ForegroundColor Green
     
-    # Install PyInstaller if needed
+    # Activate venv
+    if (Test-Path ".venv\Scripts\Activate.ps1") {
+        & .venv\Scripts\Activate.ps1
+    }
+    
+    # Install PyInstaller
     python -m pip install --quiet pyinstaller
     
-    # Build GUI exe
+    # Build GUI
     Write-Host "Building GUI executable..."
     pyinstaller --onefile --noconsole --name zipper-gui build\run_zipper_gui.py --clean
     
-    # Build CLI exe
+    # Build CLI
     Write-Host "Building CLI executable..."
     pyinstaller --onefile --name zipper-cli build\run_zipper_cli.py --clean
     
-    Write-Host "✓ Executables built successfully" -ForegroundColor Green
-} else {
-    Write-Host "`nSkipping build (using existing executables)" -ForegroundColor Yellow
+    Write-Host "Done!" -ForegroundColor Green
+}
+else {
+    Write-Host "`nSkipping build" -ForegroundColor Yellow
 }
 
 # Verify executables exist
-if (-not (Test-Path "dist\zipper-gui.exe") -or -not (Test-Path "dist\zipper-cli.exe")) {
-    Write-Error "Executables not found in dist/. Run without -SkipBuild or build manually."
+if (-not (Test-Path "dist\zipper-gui.exe")) {
+    Write-Error "GUI executable not found in dist/"
+}
+if (-not (Test-Path "dist\zipper-cli.exe")) {
+    Write-Error "CLI executable not found in dist/"
 }
 
 # Get file sizes
@@ -80,30 +65,14 @@ Write-Host "`nCreating git tag '$Version'..." -ForegroundColor Green
 git tag -a $Version -m "Release $Version"
 
 Write-Host "`n=== Next Steps ===" -ForegroundColor Cyan
-Write-Host @"
-
-1. Push the tag to GitHub:
-   git push origin $Version
-
-2. Create a GitHub release (choose one method):
-
-   METHOD A - GitHub Web UI:
-   - Go to: https://github.com/jshumate8/zipper_project/releases/new
-   - Choose tag: $Version
-   - Title: $Version
-   - Upload these files as release assets:
-     * dist\zipper-gui.exe
-     * dist\zipper-cli.exe
-   - Click "Publish release"
-
-   METHOD B - GitHub CLI (gh):
-   gh release create $Version dist\zipper-gui.exe dist\zipper-cli.exe \
-       --title "$Version" \
-       --notes "See CHANGELOG.md for details"
-
-3. Verify the release:
-   https://github.com/jshumate8/zipper_project/releases
-
-"@ -ForegroundColor White
-
-Write-Host "✓ Release preparation complete!" -ForegroundColor Green
+Write-Host ""
+Write-Host "1. Push the tag to GitHub:"
+Write-Host "   git push origin $Version" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "2. Create a GitHub release:"
+Write-Host "   - Go to: https://github.com/jshumate8/zipper_project/releases/new"
+Write-Host "   - Choose tag: $Version"
+Write-Host "   - Upload dist\zipper-gui.exe and dist\zipper-cli.exe"
+Write-Host "   - Publish release"
+Write-Host ""
+Write-Host "Done!" -ForegroundColor Green
