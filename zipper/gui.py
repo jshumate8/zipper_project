@@ -42,13 +42,13 @@ class ZipperGUI(tk.Frame):
         self.listbox = tk.Listbox(self, width=60, height=8)
         self.listbox.grid(row=2, column=0, columnspan=4, sticky="nsew")
 
-        self.btn_add = tk.Button(self, text="Add Files...", command=self.add_files)
+        self.btn_add = tk.Button(self, text="Add Files...", command=self.add_files, width=15)
         self.btn_add.grid(row=3, column=0, sticky="w", pady=(6, 0))
 
-        self.btn_add_dir = tk.Button(self, text="Add Folder...", command=self.add_folder)
+        self.btn_add_dir = tk.Button(self, text="Add Folder...", command=self.add_folder, width=15)
         self.btn_add_dir.grid(row=3, column=1, sticky="w", pady=(6, 0))
 
-        self.btn_remove = tk.Button(self, text="Remove", command=self.remove_selected)
+        self.btn_remove = tk.Button(self, text="Clear", command=self.remove_selected, width=10)
         self.btn_remove.grid(row=3, column=2, sticky="w", pady=(6, 0))
 
         # Output (changes meaning based on mode)
@@ -78,21 +78,21 @@ class ZipperGUI(tk.Frame):
     def switch_mode(self):
         """Switch between create and extract modes"""
         if self.mode.get() == "create":
-            self.inputs_lbl.config(text="Inputs (files/folders to add)")
+            self.inputs_lbl.config(text="Files and folders to compress")
             self.out_lbl.config(text="Output .zip file")
             self.start_btn.config(text="Create ZIP")
             self.btn_add.config(state=tk.NORMAL, text="Add Files...")
-            self.btn_add_dir.config(state=tk.NORMAL)
-            self.btn_remove.config(state=tk.NORMAL)
+            self.btn_add_dir.config(state=tk.NORMAL, text="Add Folder...")
+            self.btn_remove.config(text="Clear")
             self.listbox.delete(0, tk.END)
             self.output_var.set("")
         else:  # extract
-            self.inputs_lbl.config(text="ZIP File to extract (click 'Select ZIP...' below)")
+            self.inputs_lbl.config(text="ZIP file to extract")
             self.out_lbl.config(text="Extract to folder")
             self.start_btn.config(text="Extract ZIP")
-            self.btn_add.config(state=tk.NORMAL, text="Select ZIP...")
-            self.btn_add_dir.config(state=tk.DISABLED)
-            self.btn_remove.config(state=tk.NORMAL)
+            self.btn_add.config(state=tk.NORMAL, text="Select ZIP File")
+            self.btn_add_dir.config(state=tk.DISABLED, text="(not needed)")
+            self.btn_remove.config(text="Clear")
             self.listbox.delete(0, tk.END)
             self.output_var.set("")
 
@@ -119,9 +119,8 @@ class ZipperGUI(tk.Frame):
                 self.listbox.insert(tk.END, s)
 
     def remove_selected(self):
-        sels = list(self.listbox.curselection())
-        for i in reversed(sels):
-            self.listbox.delete(i)
+        # Clear all items (in extract mode there's only one anyway)
+        self.listbox.delete(0, tk.END)
 
     def browse_output(self):
         if self.mode.get() == "create":
